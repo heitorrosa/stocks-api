@@ -21,9 +21,9 @@ class Service:
             version="1.0.0",
             description=f"{service_name}"
         )
-        self._setupRoutes()
+        self.setupRoutes()
     
-    def _setupRoutes(self):  
+    def setupRoutes(self):  
         @self.app.get("/health")
         async def health():
             return JSONResponse(
