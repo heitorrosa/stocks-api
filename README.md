@@ -6,39 +6,39 @@ Built for commercial use and to the [Mansa](https://github.com/mansa-team) proje
 
 ## Installation
 1. Clone the repository:
-```bash
-git clone https://github.com/heitorrosa/stocks-api
-cd stocks-api
-```
+    ```bash
+    git clone https://github.com/heitorrosa/stocks-api
+    cd stocks-api
+    ```
 
 2. Install dependencies:
    ```bash
    pip install -r requirements.txt
    ```
 
-3. Install dependencies:
+3. Create environment configuration:
    ```env
-#
-#$ DATABASE CONFIGURATION
-#
-MYSQL_USER=user
-MYSQL_PASSWORD=password
-MYSQL_HOST=localhost
-MYSQL_DATABASE=database
+    #
+    #$ DATABASE CONFIGURATION
+    #
+    MYSQL_USER=user
+    MYSQL_PASSWORD=password
+    MYSQL_HOST=localhost
+    MYSQL_DATABASE=database
 
-#
-#$ STOCKS API
-#
-STOCKSAPI_ENABLED=TRUE
+    #
+    #$ STOCKS API
+    #
+    STOCKSAPI_ENABLED=TRUE
 
-# STOCKSAPI_HOST should be set if youre going to use an external server for the API Server, make sure to set STOCKSAPI_ENABLE=FALSE if youre going this route
-STOCKSAPI_HOST=localhost
-STOCKSAPI_PORT=3200
+    # STOCKSAPI_HOST should be set if youre going to use an external server for the API Server, make sure to set STOCKSAPI_ENABLE=FALSE if youre going this route
+    STOCKSAPI_HOST=localhost
+    STOCKSAPI_PORT=3200
 
-STOCKSAPI_RAG.ROUTE=TRUE
-STOCKSAPI_API.ROUTE=TRUE
+    STOCKSAPI_RAG.ROUTE=TRUE
+    STOCKSAPI_API.ROUTE=TRUE
 
-STOCKSAPI_RAG.KEY=key
+    STOCKSAPI_RAG.KEY=key
    ```
 
 ## API Endpoints
