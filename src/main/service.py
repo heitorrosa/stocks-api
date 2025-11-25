@@ -7,9 +7,9 @@ from imports import *
 
 APIKey_Header = APIKeyHeader(name="X-API-Key", auto_error=False)
 async def verifyAPIKey(APIKey: str = Depends(APIKey_Header)):
-    require_key = Config.STOCKS_API['KEY.SYSTEM'] == 'TRUE'
+    require_key = Config.STOCKS_API['KEY.SYSTEM']
     
-    if not require_key:
+    if require_key == 'FALSE':
         return None
     
     validKey = Config.STOCKS_API['KEY']
@@ -53,6 +53,10 @@ class Service:
                 }
             )
         
+        @self.app.get("/api/key")
+        async def APIKeyTest(APIKey: str = Depends(verifyAPIKey)):
+            return {"message": "API", "secured": True}
+        
         @self.app.get("/")
         async def root():
             return {"message": "Mansa (Stocks API)"}
@@ -60,10 +64,26 @@ class Service:
         #
         #$ API Routes
         #
-        @self.app.get("/api/keytest")
-        async def getRAGkeytest(APIKey: str = Depends(verifyAPIKey)):
-            return {"message": "API", "secured": True}
-    
+        @self.app.get("/api/historical")
+        async def getHistoricalData(
+            ticker: str = Query(...),
+            fields: str = Query(...),
+            dates: str = Query(...),
+            api_key: str = Depends(verifyAPIKey)
+        ):
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "ticker": ticker,
+                    "fields": fields.split(","),
+                    "dates": dates.split(","),
+                    "type": "historical",
+                    "data": []
+                }
+            )
+                    
+
+
     def run(self):
         uvicorn.run(self.app, host="0.0.0.0", port=self.port, log_level="critical")
     
