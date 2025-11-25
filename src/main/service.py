@@ -31,38 +31,52 @@ class Service:
     def setupRoutes(self):
         @self.app.get("/health")
         async def health():
-            return {
-                "status": "healthy",
-                "service": self.service_name,
-                "port": self.port,
-                "timestamp": str(time.time())
-            }
+            return {"status": "healthy", "service": self.service_name, "port": self.port, "timestamp": str(time.time())}
         
         @self.app.get("/")
         async def root():
             return {"message": "Mansa (Stocks API)"}
         
         @self.app.get("/api/key")
-        async def api_key_test(api_key: str = Depends(verifyAPIKey)):
+        async def APIKeyTest(api_key: str = Depends(verifyAPIKey)):
             return {"message": "API", "secured": True}
         
         @self.app.get("/api/historical")
-        async def get_historical(
-            search: str = Query(...),
-            fields: str = Query(...),
-            years: str = Query(...),
-            api_key: str = Depends(verifyAPIKey)
-        ):
+        async def getHistorical(search: str = Query(...), fields: str = Query(...), years: str = Query(...), api_key: str = Depends(verifyAPIKey)):
             return await self.queryHistorical(search, fields, years)
         
         @self.app.get("/api/fundamental")
-        async def get_fundamental(
-            search: str = Query(...),
-            fields: str = Query(...),
-            dates: str = Query(...),
-            api_key: str = Depends(verifyAPIKey)
-        ):
+        async def getFundamental(search: str = Query(...), fields: str = Query(...), dates: str = Query(...), api_key: str = Depends(verifyAPIKey)):
             return await self.queryFundamental(search, fields, dates)
+    
+    def parseDateRange(self, date_str: str, is_single: bool = True) -> tuple:
+        """Parse date string and return (start_date, end_date)"""
+        if len(date_str) == 4:  # Year only
+            return f"{date_str}-01-01", f"{date_str}-12-31"
+        elif len(date_str) == 7:  # Year-Month
+            year, month = int(date_str[:4]), int(date_str[5:7])
+            last_day = pd.Timestamp(year=year, month=month, day=1).days_in_month
+            return f"{date_str}-01", f"{date_str}-{last_day:02d}"
+        return date_str, date_str
+    
+    def buildQuery(self, search: str, fields: list, date_start: str, date_end: str, query_type: str) -> tuple:
+        """Build SQL query based on type (fundamental or historical)"""
+        cols = ["`TICKER`", "`NOME`"]
+        
+        if query_type == "fundamental":
+            cols.insert(2, "`TIME`")
+            cols.extend([f"`{field}`" for field in fields])
+        else:
+            cols.extend([f"`{field} {year}`" for field in fields for year in range(int(date_start), int(date_end) + 1)])
+        
+        where_clause = "(UPPER(`TICKER`) = UPPER(:search) OR UPPER(`NOME`) LIKE CONCAT('%', UPPER(:search), '%'))"
+        
+        if query_type == "fundamental":
+            where_clause += " AND DATE(`TIME`) BETWEEN DATE(:date_start) AND DATE(:date_end)"
+        
+        query = text(f"SELECT {', '.join(cols)} FROM b3_stocks WHERE {where_clause} ORDER BY `TIME` DESC LIMIT 1000")
+        
+        return query, {"search": search, "date_start": date_start, "date_end": date_end}
     
     async def queryHistorical(self, search: str, fields: str, years: str):
         try:
@@ -76,29 +90,13 @@ class Service:
             else:
                 raise HTTPException(status_code=400, detail="Years format: YEAR or START_YEAR,END_YEAR")
             
-            # Build column selection
-            cols = ["`TICKER`", "`NOME`"]
-            cols.extend([f"`{field} {year}`" for field in field_list for year in range(year_start, year_end + 1)])
-            
-            query = text(f"""
-                SELECT {', '.join(cols)}
-                FROM b3_stocks
-                WHERE UPPER(`TICKER`) = UPPER(:search) OR UPPER(`NOME`) LIKE CONCAT('%', UPPER(:search), '%')
-                LIMIT 1
-            """)
-            
-            df = self._execute_query(query, {"search": search})
+            query, params = self.buildQuery(search, field_list, str(year_start), str(year_end), "historical")
+            df = self.executeQuery(query, params)
             
             if df.empty:
                 raise HTTPException(status_code=404, detail=f"No data found for: {search}")
             
-            return {
-                "search": search,
-                "fields": field_list,
-                "years": [year_start, year_end],
-                "type": "historical",
-                "data": json.loads(df.to_json(orient="records"))
-            }
+            return {"search": search, "fields": field_list, "years": [year_start, year_end], "type": "historical", "data": json.loads(df.to_json(orient="records"))}
         
         except HTTPException:
             raise
@@ -111,84 +109,34 @@ class Service:
             date_list = [d.strip() for d in dates.split(",")]
             
             if len(date_list) == 1:
-                date_start = date_end = date_list[0]
-                single_date = True
+                actual_start, actual_end = self.parseDateRange(date_list[0], is_single=True)
+                original_date = date_list[0]
             elif len(date_list) == 2:
-                date_start, date_end = date_list
-                single_date = False
+                actual_start, actual_end = date_list[0], date_list[1]
+                original_date = date_list[0]
             else:
                 raise HTTPException(status_code=400, detail="Dates format: DATE or START_DATE,END_DATE")
             
-            # Build column selection
-            cols = ["`TICKER`", "`NOME`", "`TIME`"]
-            cols.extend([f"`{field}`" for field in field_list])
+            query, params = self.buildQuery(search, field_list, actual_start, actual_end, "fundamental")
+            params["date_start"], params["date_end"] = actual_start, actual_end
             
-            if single_date:
-                # Handle partial dates: 2025 -> 2025-01-01 to 2025-12-31, 2025-11 -> 2025-11-01 to 2025-11-30
-                if len(date_start) == 4:  # Year only
-                    actual_start = f"{date_start}-01-01"
-                    actual_end = f"{date_start}-12-31"
-                elif len(date_start) == 7:  # Year-Month
-                    # Get last day of the month using calendar
-                    year, month = int(date_start[:4]), int(date_start[5:7])
-                    last_day = pd.Timestamp(year=year, month=month, day=1).days_in_month
-                    actual_start = f"{date_start}-01"
-                    actual_end = f"{date_start}-{last_day:02d}"
-                else:  # Full date
-                    actual_start = actual_end = date_start
-                
-                query = text(f"""
-                    SELECT {', '.join(cols)}
-                    FROM b3_stocks
-                    WHERE (UPPER(`TICKER`) = UPPER(:search) OR UPPER(`NOME`) LIKE CONCAT('%', UPPER(:search), '%'))
-                    AND DATE(`TIME`) BETWEEN DATE(:date_start) AND DATE(:date_end)
-                    ORDER BY `TIME` DESC
-                """)
-                params = {
-                    "search": search,
-                    "date_start": actual_start,
-                    "date_end": actual_end
-                }
-            else:
-                query = text(f"""
-                    SELECT {', '.join(cols)}
-                    FROM b3_stocks
-                    WHERE (UPPER(`TICKER`) = UPPER(:search) OR UPPER(`NOME`) LIKE CONCAT('%', UPPER(:search), '%'))
-                    AND DATE(`TIME`) BETWEEN DATE(:date_start) AND DATE(:date_end)
-                    ORDER BY `TIME` DESC
-                """)
-                params = {
-                    "search": search,
-                    "date_start": date_start,
-                    "date_end": date_end
-                }
-            
-            df = self._execute_query(query, params)
+            df = self.executeQuery(query, params)
             
             if df.empty:
                 raise HTTPException(status_code=404, detail=f"No data found for: {search}")
             
-            # Convert TIME to string
             if 'TIME' in df.columns:
                 df['TIME'] = pd.to_datetime(df['TIME']).astype(str)
             
-            return {
-                "search": search,
-                "fields": field_list,
-                "dates": [date_start, date_end],
-                "type": "fundamental",
-                "data": json.loads(df.to_json(orient="records"))
-            }
+            return {"search": search, "fields": field_list, "dates": [original_date, date_list[1] if len(date_list) == 2 else original_date], "type": "fundamental", "data": json.loads(df.to_json(orient="records"))}
         
         except HTTPException:
             raise
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Error fetching fundamental data: {str(e)}")
     
-    def _execute_query(self, query: str, params: dict) -> pd.DataFrame:
-        engine = create_engine(
-            f"mysql+pymysql://{Config.MYSQL['USER']}:{Config.MYSQL['PASSWORD']}@{Config.MYSQL['HOST']}/{Config.MYSQL['DATABASE']}"
-        )
+    def executeQuery(self, query: str, params: dict) -> pd.DataFrame:
+        engine = create_engine(f"mysql+pymysql://{Config.MYSQL['USER']}:{Config.MYSQL['PASSWORD']}@{Config.MYSQL['HOST']}/{Config.MYSQL['DATABASE']}")
         with engine.connect() as connection:
             result = connection.execute(query, params)
             return pd.DataFrame(result.fetchall(), columns=result.keys())
