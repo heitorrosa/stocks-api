@@ -83,6 +83,29 @@ curl -H "X-API-Key: YOUR_KEY" "http://localhost:3200/api/fundamental?search=VALE
 PRECO, VALOR DE MERCADO, LIQUIDEZ MEDIA DIARIA, P/L, P/VP, P/ATIVOS, P/EBIT, P/CAP. GIRO, P. AT CIR. LIQ., PSR, EV/EBIT, PEG Ratio, PRECO DE GRAHAM, PRECO DE BAZIN, MARG. LIQUIDA, MARGEM BRUTA, MARGEM EBIT, ROE, ROA, ROIC, VPA, LPA, DY, DY MEDIO 5 ANOS, CAGR DIVIDENDOS 5 ANOS, CAGR RECEITAS 5 ANOS, CAGR LUCROS 5 ANOS, RENT 1 DIA, RENT 5 DIAS, RENT 1 MES, RENT 6 MESES, RENT 1 ANO, RENT 5 ANOS, RENT MEDIA 5 ANOS, RENT TOTAL, PATRIMONIO / ATIVOS, PASSIVOS / ATIVOS, LIQ. CORRENTE, DIVIDA LIQUIDA / EBIT, DIV. LIQ. / PATRI., GIRO ATIVOS, NOME, TICKER, SETOR, SUBSETOR, SEGMENTO, SGR, TAG ALONG
 ```
 
+## Response Format
+
+All successful responses follow this structure:
+
+```json
+{
+  "search": "PETR4",
+  "fields": ["P/L", "ROE"],
+  "dates": "2024",
+  "type": "fundamental",
+  "count": 250,
+  "data": [
+    {
+      "TICKER": "PETR4",
+      "NOME": "Petróleo Brasileiro S.A.",
+      "TIME": "2024-11-15T10:30:00",
+      "P/L": 7.5,
+      "ROE": 0.18
+    }
+  ]
+}
+```
+
 ## TODO
 
 - [ ] **MySQL-Linked Key System**: Migrate from environment-based API keys to a database-driven key management system with per-user authentication, key rotation, and usage tracking
