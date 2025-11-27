@@ -25,6 +25,9 @@ def initialize(module, config):
     print("=" * 60)
     print(f"Configuring {module}\n")
 
+    #
+    #$ STOCKS_API
+    #
     if module == "STOCKS_API":
         if config['HOST'] in LOCALHOST_ADDRESSES and mysql_connectiontest():
             API_Service.initialize(
@@ -34,7 +37,7 @@ def initialize(module, config):
         
             time.sleep(2)
 
-        #$ Stocks API connection test
+        #$ STOCKS_API connection test
         try:
             start_time = time.time()
             response = requests.get(f"http://{config['HOST']}:{config['PORT']}/health", timeout=5)
