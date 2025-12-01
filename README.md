@@ -113,4 +113,4 @@ All successful responses follow this structure:
 - [ ] **Caching Layer**: Add Redis caching for frequently requested data to reduce database load
 
 ## License
-GNU GENERAL PUBLIC LICENSE MODIFIED v1.0 - Mansa Team. See LICENSE for details.
+GPL 3.0 MODIFIED Mansa Team's License. See LICENSE for details.
