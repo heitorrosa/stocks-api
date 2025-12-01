@@ -93,6 +93,28 @@ def normalizeColumns(data: pd.DataFrame, order: list) -> pd.DataFrame:
     newOrder = orderedColumns + remainingColumns
     return data[newOrder]
 
+def parseSearchTerms(search: str) -> list:
+    """Parse comma-separated search terms and return list of cleaned tickers"""
+    if not search:
+        return []
+    return [s.strip().upper() for s in search.split(",") if s.strip()]
+
+def buildMultiTickerWhereClause(search_terms: list) -> tuple:
+    """Build WHERE clause for multiple ticker search"""
+    if not search_terms:
+        return "1=1", {}
+    
+    conditions = []
+    params = {}
+    
+    for i, term in enumerate(search_terms):
+        conditions.append(f"(UPPER(`TICKER`) = :ticker_{i} OR UPPER(`NOME`) LIKE :nome_{i})")
+        params[f"ticker_{i}"] = term
+        params[f"nome_{i}"] = f"%{term}%"
+    
+    where_clause = " OR ".join(conditions)
+    return where_clause, params
+
 #
 #$ API Queries
 #
@@ -121,13 +143,17 @@ async def queryHistorical(engine, search: str = None, fields: str = None, years:
         if len(cols) == 2:
             raise HTTPException(status_code=400, detail="No valid columns found")
         
-        where_clause = "(UPPER(`TICKER`) = UPPER(:search) OR UPPER(`NOME`) LIKE CONCAT('%', UPPER(:search), '%'))" if search else "1=1"
-        params = {"search": search} if search else {}
+        search_terms = parseSearchTerms(search)
+        where_clause, params = buildMultiTickerWhereClause(search_terms)
         
         df = executeQuery(engine, text(buildQuery(cols, where_clause, "`TICKER` ASC")), params)
         
         if df.empty:
             raise HTTPException(status_code=404, detail="No data found")
+        
+        # Deduplicate: Keep only the first occurrence of each ticker
+        # (since historical data is the same across duplicate rows)
+        df = df.drop_duplicates(subset=['TICKER'], keep='first')
         
         return {
             "search": search or "all",
@@ -175,9 +201,12 @@ async def queryFundamental(engine, search: str = None, fields: str = None, dates
             params = {}
             original_date = "all"
         
-        if search:
-            where_clause = f"(UPPER(`TICKER`) = UPPER(:search) OR UPPER(`NOME`) LIKE CONCAT('%', UPPER(:search), '%')) AND {where_clause}"
-            params["search"] = search
+        search_terms = parseSearchTerms(search)
+        search_where_clause, search_params = buildMultiTickerWhereClause(search_terms)
+        
+        if search_terms:
+            where_clause = f"({search_where_clause}) AND {where_clause}"
+            params.update(search_params)
         
         df = executeQuery(engine, text(buildQuery(cols, where_clause, "`TICKER` ASC, `TIME` DESC")), params)
         
