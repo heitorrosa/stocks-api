@@ -59,20 +59,72 @@ def categorizeColumns(columns: list) -> tuple:
     """Categorize columns into historical and fundamental"""
     historical_fields = {}
     historical_cols = set()
+    current_year = datetime.now().year
     
     for col in columns:
         parts = col.rsplit(" ", 1)
         if len(parts) == 2 and parts[1].isdigit():
             year = int(parts[1])
-            if 1900 <= year <= 2100:
+            # Only accept reasonable years: 1990 to current year + 5
+            if 1990 <= year <= (current_year + 5):
                 field_name = parts[0]
                 historical_fields.setdefault(field_name, []).append(year)
                 historical_cols.add(col)
     
     temporal_cols = {"TICKER", "NOME", "TIME"}
-    fundamental_cols = sorted([col for col in columns if col not in temporal_cols and col not in historical_cols])
+    fundamental_cols = []
+    
+    for col in columns:
+        if col in temporal_cols or col in historical_cols:
+            continue
+        
+        # Also exclude columns that look like they have invalid year suffixes
+        parts = col.rsplit(" ", 1)
+        if len(parts) == 2 and parts[1].isdigit():
+            year = int(parts[1])
+            # Skip columns with invalid years
+            if not (1990 <= year <= (current_year + 5)):
+                continue
+        
+        fundamental_cols.append(col)
+    
+    fundamental_cols = sorted(fundamental_cols)
     
     return historical_fields, fundamental_cols
+
+def filterValidHistoricalColumns(cols: list, available_columns: set) -> list:
+    """Filter out invalid year columns from historical data"""
+    valid_cols = []
+    for col in cols:
+        if col in ["`TICKER`", "`NOME`"]:
+            valid_cols.append(col)
+        else:
+            # Extract field and year from column name
+            col_clean = col.replace("`", "")
+            parts = col_clean.rsplit(" ", 1)
+            if len(parts) == 2 and parts[1].isdigit():
+                year = int(parts[1])
+                # Only include columns with valid years
+                if 1900 <= year <= 2100 and col_clean in available_columns:
+                    valid_cols.append(col)
+            elif col_clean in available_columns:
+                valid_cols.append(col)
+    return valid_cols
+
+def filterValidFundamentalColumns(cols: list, available_columns: set) -> list:
+    """Filter out columns with invalid year suffixes from fundamental data"""
+    valid_cols = []
+    for col in cols:
+        col_clean = col.replace("`", "")
+        # Reject columns that end with year-like patterns that are invalid
+        parts = col_clean.rsplit(" ", 1)
+        if len(parts) == 2 and parts[1].isdigit():
+            year = int(parts[1])
+            # Skip if year is outside valid range
+            if not (1900 <= year <= 2100):
+                continue
+        valid_cols.append(col)
+    return valid_cols
 
 def buildQuery(cols: list, where_clause: str, order_by: str = "") -> str:
     """Build SQL query"""
@@ -121,6 +173,7 @@ def buildMultiTickerWhereClause(search_terms: list) -> tuple:
 async def queryHistorical(engine, search: str = None, fields: str = None, years: str = None):
     try:
         available_columns = getAvailableColumns(engine)
+        available_columns_set = set(available_columns)
         historical_fields, _ = categorizeColumns(available_columns)
         
         if not historical_fields:
@@ -138,7 +191,10 @@ async def queryHistorical(engine, search: str = None, fields: str = None, years:
         if year_start not in available_years or year_end not in available_years or year_start > year_end:
             raise HTTPException(status_code=400, detail=f"Invalid years. Available: {available_years}")
         
-        cols = ["`TICKER`", "`NOME`"] + [f"`{field} {year}`" for field in field_list for year in range(year_start, year_end + 1) if f"{field} {year}" in available_columns]
+        cols = ["`TICKER`", "`NOME`"] + [f"`{field} {year}`" for field in field_list for year in range(year_start, year_end + 1) if f"{field} {year}" in available_columns_set]
+        
+        # Filter out invalid year columns
+        cols = filterValidHistoricalColumns(cols, available_columns_set)
         
         if len(cols) == 2:
             raise HTTPException(status_code=400, detail="No valid columns found")
@@ -152,7 +208,6 @@ async def queryHistorical(engine, search: str = None, fields: str = None, years:
             raise HTTPException(status_code=404, detail="No data found")
         
         # Deduplicate: Keep only the first occurrence of each ticker
-        # (since historical data is the same across duplicate rows)
         df = df.drop_duplicates(subset=['TICKER'], keep='first')
         
         return {
@@ -171,6 +226,7 @@ async def queryHistorical(engine, search: str = None, fields: str = None, years:
 async def queryFundamental(engine, search: str = None, fields: str = None, dates: str = None):
     try:
         available_columns = getAvailableColumns(engine)
+        available_columns_set = set(available_columns)
         _, fundamental_cols = categorizeColumns(available_columns)
         
         if not fundamental_cols:
@@ -182,6 +238,9 @@ async def queryFundamental(engine, search: str = None, fields: str = None, dates
             raise HTTPException(status_code=400, detail=f"No valid fields. Available: {fundamental_cols}")
         
         cols = ["`TICKER`", "`NOME`", "`TIME`"] + [f"`{field}`" for field in field_list]
+        
+        # Filter out invalid columns
+        cols = filterValidFundamentalColumns(cols, available_columns_set)
         
         if dates:
             date_list = [d.strip() for d in dates.split(",")]
