@@ -37,22 +37,23 @@ def initialize(module, config):
         
             time.sleep(2)
 
-        #$ STOCKS_API connection test
+    #$ Connection Test
+    if module == "STOCKS_API":
         try:
             start_time = time.time()
             response = requests.get(f"http://{config['HOST']}:{config['PORT']}/health", timeout=5)
             latency = (time.time() - start_time) * 1000
 
             if response.status_code == 200:
-                print(f"Mansa (Stocks API) connected to http://{config['HOST']}:{config['PORT']}! ({latency:.2f}ms)")
-            else: print(f"Mansa (Stocks API) returned status {response.status_code}")
+                print(f"Mansa ({module}) connected to http://{config['HOST']}:{config['PORT']}! ({latency:.2f}ms)")
+            else: print(f"Mansa ({module}) returned status {response.status_code}")
                                 
         except requests.exceptions.Timeout:
-            print(f"Mansa (Stocks API) connection timeout (5s)")
+            print(f"Mansa ({module}) connection timeout (5s)")
         except requests.exceptions.ConnectionError:
-            print(f"Cannot connect to Mansa (Stocks API) to http://{config['HOST']}:{config['PORT']}")
+            print(f"Cannot connect to Mansa ({module}) to http://{config['HOST']}:{config['PORT']}")
         except Exception as e:
-            print(f"Mansa (Stocks API) connection failed: {e}")
+            print(f"Mansa ({module}) connection failed: {e}")
 
         print("=" * 60, "\n")
 
@@ -60,4 +61,4 @@ if __name__ == "__main__":
     if Config.STOCKS_API['ENABLED'] == "TRUE":
         initialize("STOCKS_API", Config.STOCKS_API)
 
-        while True: time.sleep(1)
+    while True: time.sleep(1)
