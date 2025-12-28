@@ -110,7 +110,6 @@ All successful responses follow this structure:
 
 - [ ] **MySQL-Linked Key System**: Migrate from environment-based API keys to a database-driven key management system with per-user authentication, key rotation, and usage tracking
 - [ ] **Rate Limiting**: Implement request rate limiting based on API key tier to prevent abuse and ensure fair resource allocation across clients
-- [ ] **Caching Layer**: Add Redis caching for frequently requested data to reduce database load
 
 ## License
-GNU GENERAL PUBLIC LICENSE MODIFIED v1.0 - Mansa Team. See LICENSE for details.
+Mansa Team's MODIFIED GPL 3.0 License. See LICENSE for details.
