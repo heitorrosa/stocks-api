@@ -112,4 +112,4 @@ All successful responses follow this structure:
 - [ ] **Rate Limiting**: Implement request rate limiting based on API key tier to prevent abuse and ensure fair resource allocation across clients
 
 ## License
-GPL 3.0 MODIFIED Mansa Team's License. See LICENSE for details.
+Mansa Team's MODIFIED GPL 3.0 License. See LICENSE for details.
