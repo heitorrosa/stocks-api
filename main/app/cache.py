@@ -27,8 +27,7 @@ def getCachedStocks(engine):
 
             with CACHE_LOCK:
                 STOCKS_CACHE = df
-            print(f"[{datetime.now()}] Cache updated: {len(df)} rows")
-        
+
     except Exception as e:
-        print(f"Erro: {e}")
+        pass
             

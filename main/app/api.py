@@ -7,6 +7,7 @@ from imports import *
 from main.app.query import queryFundamental, queryHistorical
 from main.app.util import verifyAPIKey
 from main.app.cache import startCacheScheduler
+
 class API:
     def __init__(self, service_name: str, port: int):
         self.service_name = service_name
