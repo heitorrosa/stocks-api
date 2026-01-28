@@ -1,4 +1,4 @@
-fastap i==0.121.3
+fastapi==0.121.3
 uvicorn==0.38.0
 sqlalchemy==2.0.44
 pandas==2.3.3
